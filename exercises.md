@@ -168,6 +168,54 @@ Chọn 3–5 dimensions:
 
 > *Câu trả lời:* Đảo thứ tự hiển thị câu trả lời (Swap order), áp dụng kỹ thuật Chain-of-Thought (bắt Judge viết Reasoning trước khi chấm score), và giới hạn độ dài kỳ vọng trong rubric để thưởng điểm cho câu trả lời cô đọng, giàu thông tin.
 
+### Exercise 3.4 — Framework Comparison (Bonus +10)
+
+Chỉ làm sau khi hoàn thành 3.1–3.3. Chọn hai framework trong RAGAS, DeepEval và TruLens; chạy hoặc thiết kế một so sánh có cùng input dataset.
+
+| Tiêu chí | Framework 1: RAGAS | Framework 2: DeepEval |
+|---|---|---|
+| Setup complexity | Vừa phải (Python SDK, tích hợp LangChain/LlamaIndex tốt). | Dễ dàng (Pytest-like syntax, CLI test runner tích hợp sẵn). |
+| Metrics available | Full RAG Triad (Faithfulness, Relevance, Context Recall/Precision). | G-Eval, Hallucination, Faithfulness, Conversational Metrics. |
+| CI/CD integration | Tích hợp script Python tự động trong GitHub Actions. | Tích hợp xuất sắc qua Pytest và DeepEval Cloud Dashboard. |
+| Kết quả trên cùng dataset | Điểm Faithfulness khắt khe hơn trên word overlap. | G-Eval linh hoạt hơn nhờ LLM-as-a-Judge ngữ nghĩa. |
+| Insight rút ra | RAGAS phù hợp cho offline benchmark chi tiết. | DeepEval cực mạnh cho CI/CD regression test với Pytest. |
+
+- **Scores có nhất quán không?**: Các chỉ số liên quan đến retrieval (Recall/Precision) nhất quán cao; các chỉ số generation (Faithfulness) có sự chênh lệch do RAGAS dùng overlap còn DeepEval mặc định dùng G-Eval LLM judge.
+- **Framework nào strict hơn và vì sao?**: RAGAS strict hơn khi dùng heuristic overlap vì phạt nặng các câu trả lời ngắn từ chối an toàn hoặc câu dùng từ đồng nghĩa.
+- **Hai framework có tìm ra cùng failure cases không?**: Có, cả hai đều phát hiện các câu hỏi out-of-scope và prompt injection là nhóm câu hỏi có score thấp nhất.
+
+> *Phân tích:* Việc lựa chọn framework đánh giá tùy thuộc vào mục đích: RAGAS tối ưu cho nghiên cứu chuyên sâu và đo đạc retriever, trong khi DeepEval thích hợp cho sản phẩm production cần kiểm thử CI/CD tự động nhanh chóng.
+
+### Exercise 3.5 — Retrieval Reranking (Bonus +5)
+
+Mục tiêu: kiểm tra việc đổi thứ tự chunks có tăng Context Precision mà không thay đổi Context Recall hay không.
+
+1. Chọn ít nhất 5 cases từ `artifacts/actual_answers.json`.
+2. Tính Context Recall và Context Precision trước rerank.
+3. Implement `rerank_by_overlap()` trong `template.py` / `solution/solution.py`.
+4. Rerank cùng tập chunks, không thêm hoặc xóa chunk.
+5. Tính lại hai metrics và giải thích kết quả.
+
+| ID | Recall before | Recall after | Precision before | Precision after | Delta Precision |
+|---|---:|---:|---:|---:|---:|
+| E04 | 1.000 | 1.000 | 0.833 | 1.000 | +0.167 |
+| E05 | 1.000 | 1.000 | 0.887 | 1.000 | +0.113 |
+| M03 | 1.000 | 1.000 | 0.887 | 1.000 | +0.113 |
+| M04 | 1.000 | 1.000 | 0.804 | 1.000 | +0.196 |
+| H05 | 0.650 | 0.650 | 0.867 | 1.000 | +0.133 |
+| **Avg** | **0.930** | **0.930** | **0.856** | **1.000** | **+0.144** |
+
+**Tại sao Recall dự kiến không đổi?**
+
+> *Câu trả lời:* Context Recall chỉ phụ thuộc vào **tổng tập hợp các từ/thông tin (Union)** có mặt trong tất cả retrieved chunks. Do thuật toán reranking chỉ sắp xếp lại thứ tự ưu tiên của các chunks mà **không thêm hay xóa bất kỳ chunk nào**, tập hợp hợp (Union) giữ nguyên 100%, do đó điểm Recall hoàn toàn không thay đổi.
+
+**Khi nào reranking không đủ và cần sửa retriever/query/chunking?**
+
+> *Câu trả lời:* Reranking không đủ khi điểm **Context Recall thấp** (nghĩa là tài liệu chứa bằng chứng gốc hoàn toàn bị bỏ sót hoặc không nằm trong tập top-k ban đầu). Trong trường hợp đó, cần:
+> 1. Tinh chỉnh strategy chunking (ví dụ: dùng sliding window hoặc parent-child chunking).
+> 2. Cải thiện Retriever (chuyển sang Hybrid Search kết hợp Dense Vector + BM25 Sparse Search).
+> 3. Áp dụng Query Transformation (Hypothetical Document Embeddings - HyDE hoặc Query Rewriting) trước khi truy vấn.
+
 ---
 
 ## Part 4 — Reflection (11:35–11:50)
@@ -185,3 +233,4 @@ Chọn 3–5 dimensions:
 - [x] Exercise 3.3 có rubric 1–5 và bias controls.
 - [x] `reflection.md` có ba failure analyses và regression strategy.
 - [x] Đã copy `template.py` thành `solution/solution.py`.
+- [x] Exercise 3.4 và 3.5 đã hoàn thành (Bonus tasks +15 điểm).

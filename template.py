@@ -839,6 +839,21 @@ class FailureAnalyzer:
         return suggestions
 
 
+def rerank_by_overlap(contexts: list[str], query: str) -> list[str]:
+    """A minimal lexical reranker: sort chunks by word overlap with the query,
+    most-overlapping first. Stand-in for a real cross-encoder reranker.
+    """
+    query_tokens = set(_tokenize(query))
+    if not query_tokens:
+        return list(contexts)
+
+    return sorted(
+        contexts,
+        key=lambda c: len(_tokenize(c) & query_tokens),
+        reverse=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Entry point for manual testing
 # ---------------------------------------------------------------------------
