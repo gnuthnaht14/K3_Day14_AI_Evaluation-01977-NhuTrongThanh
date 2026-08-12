@@ -391,8 +391,7 @@ class LLMJudge:
     """
 
     def __init__(self, judge_llm_fn: Callable[[str], str]) -> None:
-        # TODO: store judge_llm_fn
-        pass
+        self.judge_llm_fn = judge_llm_fn
 
     def score_response(
         self,
@@ -424,8 +423,38 @@ class LLMJudge:
                 "reasoning": str,               # raw LLM explanation
             }
         """
-        # TODO
-        raise NotImplementedError("Implement score_response")
+        prompt = (
+            f"Question: {question}\n"
+            f"Answer: {answer}\n"
+            f"Rubric: {rubric}\n"
+            "Please evaluate the answer based on the rubric and return JSON mapping each criterion to a score between 0.0 and 1.0."
+        )
+        raw_response = self.judge_llm_fn(prompt)
+
+        scores: dict[str, float] = {}
+        try:
+            import json
+            parsed = json.loads(raw_response)
+            if isinstance(parsed, dict):
+                if "scores" in parsed and isinstance(parsed["scores"], dict):
+                    parsed_scores = parsed["scores"]
+                else:
+                    parsed_scores = parsed
+
+                for criterion in rubric:
+                    if criterion in parsed_scores and isinstance(parsed_scores[criterion], (int, float)):
+                        scores[criterion] = float(parsed_scores[criterion])
+                    else:
+                        scores[criterion] = 0.5
+            else:
+                scores = {criterion: 0.5 for criterion in rubric}
+        except Exception:
+            scores = {criterion: 0.5 for criterion in rubric}
+
+        return {
+            "scores": scores,
+            "reasoning": raw_response,
+        }
 
     def detect_bias(self, scores_batch: list[dict[str, Any]]) -> dict[str, Any]:
         """
@@ -446,8 +475,44 @@ class LLMJudge:
                 "severity_bias":   bool,
             }
         """
-        # TODO
-        raise NotImplementedError("Implement detect_bias")
+        if not scores_batch:
+            return {
+                "positional_bias": False,
+                "leniency_bias": False,
+                "severity_bias": False,
+            }
+
+        all_scores: list[float] = []
+        item_averages: list[float] = []
+
+        for item in scores_batch:
+            scores_dict = item.get("scores", {})
+            if scores_dict:
+                vals = [float(v) for v in scores_dict.values() if isinstance(v, (int, float))]
+                all_scores.extend(vals)
+                if vals:
+                    item_averages.append(sum(vals) / len(vals))
+
+        if all_scores:
+            avg_all = sum(all_scores) / len(all_scores)
+            leniency_bias = avg_all > 0.8
+            severity_bias = avg_all < 0.3
+        else:
+            leniency_bias = False
+            severity_bias = False
+
+        if len(item_averages) >= 2:
+            first_avg = item_averages[0]
+            rest_avg = sum(item_averages[1:]) / len(item_averages[1:])
+            positional_bias = first_avg > rest_avg + 0.1
+        else:
+            positional_bias = False
+
+        return {
+            "positional_bias": positional_bias,
+            "leniency_bias": leniency_bias,
+            "severity_bias": severity_bias,
+        }
 
 
 # ---------------------------------------------------------------------------
