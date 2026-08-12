@@ -815,16 +815,22 @@ class FailureAnalyzer:
         categories = self.categorize_failures(failures)
         suggestions: list[str] = []
 
-        if categories.get("hallucination", 0) > 0:
-            suggestions.append("Implement hallucination checker to filter unsupported claims")
-        if categories.get("irrelevant", 0) > 0:
-            suggestions.append("Refine prompt and instructions to keep generator focused on question intent")
-        if categories.get("incomplete", 0) > 0:
-            suggestions.append("Add few-shot examples showing complete answers to improve completeness")
-        if categories.get("off_topic", 0) > 0:
-            suggestions.append("Improve intent classification and routing before context retrieval")
-        if categories.get("refusal", 0) > 0:
-            suggestions.append("Calibrate safety guardrails to avoid unnecessary refusals")
+        category_map = {
+            "hallucination": "Implement hallucination checker to filter unsupported claims",
+            "irrelevant": "Refine prompt and instructions to keep generator focused on question intent",
+            "incomplete": "Add few-shot examples showing complete answers to improve completeness",
+            "off_topic": "Improve intent classification and routing before context retrieval",
+            "refusal": "Calibrate safety guardrails to avoid unnecessary refusals",
+        }
+
+        # Sort failure categories by count descending to truly prioritize most frequent failures
+        sorted_categories = sorted(categories.items(), key=lambda item: item[1], reverse=True)
+
+        for cat_type, count in sorted_categories:
+            if count > 0 and cat_type in category_map:
+                sug = category_map[cat_type]
+                if sug not in suggestions:
+                    suggestions.append(sug)
 
         defaults = [
             "Increase chunk size in RAG pipeline to reduce context fragmentation",
