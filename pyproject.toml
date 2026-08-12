@@ -1,0 +1,21 @@
+[project]
+name = "k3-day14-ai-evaluation-01977-nhutrongthanh"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "gnuthnaht14", email = "thanhnhutrong@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.66.0,<3.0.0",
+    "pytest>=8.0.0,<10.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+]
+
+[project.scripts]
+k3-day14-ai-evaluation-01977-nhutrongthanh = "k3_day14_ai_evaluation_01977_nhutrongthanh:main"
+
+[build-system]
+requires = ["uv_build>=0.12.2,<0.13.0"]
+build-backend = "uv_build"
