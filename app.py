@@ -361,6 +361,9 @@ with tab3:
 
         st.markdown(f"#### Ca Thất Bại #{selected_fail['id']} — Difficulty: `{selected_fail['difficulty']}`")
 
+        # Question display box
+        st.info(f"❓ **Question (Câu hỏi):** {selected_fail.get('question', 'N/A')}")
+
         # Side-by-Side Comparison
         col_exp, col_act = st.columns(2)
         with col_exp:
