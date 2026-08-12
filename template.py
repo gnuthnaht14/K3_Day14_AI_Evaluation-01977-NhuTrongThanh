@@ -161,8 +161,12 @@ class RAGASEvaluator:
         Returns:
             float in [0.0, 1.0] — 1.0 = fully grounded in context.
         """
-        # TODO
-        raise NotImplementedError("Implement evaluate_faithfulness")
+        answer_tokens = _tokenize(answer)
+        if not answer_tokens:
+            return 1.0
+        context_tokens = _tokenize(context)
+        faithfulness = len(answer_tokens & context_tokens) / len(answer_tokens)
+        return min(max(faithfulness, 0.0), 1.0)
 
     def evaluate_relevance(self, answer: str, question: str) -> float:
         """
@@ -175,8 +179,12 @@ class RAGASEvaluator:
         Returns:
             float in [0.0, 1.0]
         """
-        # TODO
-        raise NotImplementedError("Implement evaluate_relevance")
+        question_tokens = _tokenize(question)
+        if not question_tokens:
+            return 1.0
+        answer_tokens = _tokenize(answer)
+        relevance = len(answer_tokens & question_tokens) / len(question_tokens)
+        return min(max(relevance, 0.0), 1.0)
 
     def evaluate_completeness(self, answer: str, expected: str) -> float:
         """
@@ -189,8 +197,12 @@ class RAGASEvaluator:
         Returns:
             float in [0.0, 1.0]
         """
-        # TODO
-        raise NotImplementedError("Implement evaluate_completeness")
+        expected_tokens = _tokenize(expected)
+        if not expected_tokens:
+            return 1.0
+        answer_tokens = _tokenize(answer)
+        completeness = len(answer_tokens & expected_tokens) / len(expected_tokens)
+        return min(max(completeness, 0.0), 1.0)
 
     # -----------------------------------------------------------------------
     # Task 2b — Retrieval-side metrics (evaluate the GET-CONTEXT step)
@@ -211,8 +223,14 @@ class RAGASEvaluator:
 
         Low recall => retriever missed evidence the answer needs.
         """
-        # TODO
-        raise NotImplementedError("Implement evaluate_context_recall")
+        expected_tokens = _tokenize(expected)
+        if not expected_tokens:
+            return 1.0
+        union_tokens: set[str] = set()
+        for chunk in contexts:
+            union_tokens.update(_tokenize(chunk))
+        recall = len(expected_tokens & union_tokens) / len(expected_tokens)
+        return min(max(recall, 0.0), 1.0)
 
     def evaluate_context_precision(
         self,
@@ -232,8 +250,32 @@ class RAGASEvaluator:
         Return 1.0 if expected empty; 0.0 if no chunks or none relevant.
         Reordering relevant chunks earlier (reranking) raises this score.
         """
-        # TODO
-        raise NotImplementedError("Implement evaluate_context_precision")
+        expected_tokens = _tokenize(expected)
+        if not expected_tokens:
+            return 1.0
+        if not contexts:
+            return 0.0
+
+        rel_flags: list[int] = []
+        for chunk in contexts:
+            chunk_tokens = _tokenize(chunk)
+            coverage = len(chunk_tokens & expected_tokens) / len(expected_tokens)
+            rel_flags.append(1 if coverage >= relevance_threshold else 0)
+
+        num_relevant = sum(rel_flags)
+        if num_relevant == 0:
+            return 0.0
+
+        sum_precision = 0.0
+        running_rel_count = 0
+        for k, is_rel in enumerate(rel_flags, start=1):
+            if is_rel:
+                running_rel_count += 1
+                precision_at_k = running_rel_count / k
+                sum_precision += precision_at_k
+
+        ap_at_k = sum_precision / num_relevant
+        return min(max(ap_at_k, 0.0), 1.0)
 
     def run_full_eval(
         self,
@@ -265,8 +307,48 @@ class RAGASEvaluator:
         Returns:
             EvalResult with all fields populated.
         """
-        # TODO
-        raise NotImplementedError("Implement run_full_eval")
+        faithfulness = self.evaluate_faithfulness(answer, context)
+        relevance = self.evaluate_relevance(answer, question)
+        completeness = self.evaluate_completeness(answer, expected)
+
+        passed = faithfulness >= 0.5 and relevance >= 0.5 and completeness >= 0.5
+
+        if faithfulness < 0.3:
+            failure_type: str | None = "hallucination"
+        elif relevance < 0.3:
+            failure_type = "irrelevant"
+        elif completeness < 0.3:
+            failure_type = "incomplete"
+        elif not passed:
+            failure_type = "off_topic"
+        else:
+            failure_type = None
+
+        if contexts is None:
+            c_recall: float | None = None
+            c_precision: float | None = None
+        else:
+            c_recall = self.evaluate_context_recall(contexts, expected)
+            c_precision = self.evaluate_context_precision(contexts, expected)
+
+        qa_pair = QAPair(
+            question=question,
+            expected_answer=expected,
+            context=context,
+            retrieved_contexts=contexts if contexts is not None else [],
+        )
+
+        return EvalResult(
+            qa_pair=qa_pair,
+            actual_answer=answer,
+            faithfulness=faithfulness,
+            relevance=relevance,
+            completeness=completeness,
+            passed=passed,
+            failure_type=failure_type,
+            context_precision=c_precision,
+            context_recall=c_recall,
+        )
 
 
 # ---------------------------------------------------------------------------
